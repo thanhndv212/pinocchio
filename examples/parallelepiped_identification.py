@@ -60,7 +60,7 @@ q_l2 = q_l1 = 0.0
 Q = np.array([[0,0,0]])
 for i in range(1000):   
     q_l1 =  a + b*t + c*t*t + d*t*t*t
-    q_l2 =  a + b*t + c*t*t + d*t*t*t
+    q_l2 =  a + 2*b*t + c*t*t + d*t*t*t
     t = t+ eps
     q1 = np.append(q1, np.array([[0,0,0, 0,0,0, 0,q_l1,q_l2]]), axis = 0)
     
