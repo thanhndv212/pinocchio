@@ -45,6 +45,7 @@ model = robot.model
 data = robot.data	
 nq, nv = model.nq, model.nv
 
+
 #numbers of samples
 N = 49
 
@@ -95,16 +96,17 @@ for i in range(N):
 	t = t+ eps
 	tau_temp = pin.rnea(model, data, q_temp, v_temp, a_temp)
 	W_temp = pin.computeJointTorqueRegressor(model, data, q_temp, v_temp, a_temp)
+	#TODO: rearrange tau and W by the order of links
 	TAU = np.append(TAU,tau_temp)
 	W = np.vstack((W,W_temp))
-	# print(robot.gravity(q_temp))
-
+# print(dir(model))
 #inertial parameters of link2 from urdf model
 phi1 = model.inertias[1].toDynamicParameters()
-print(model.inertias)
+# print(model.friction)
 phi2 = model.inertias[2].toDynamicParameters()
 phi = np.round(np.append(phi1, phi2),6)
 print('standard paramaters: ')
+#TODO: generialize listing of inertia parameters. 
 params_full = ['m1', 'mx1','my1','mz1','Ixx1',
 'Ixy1','Iyy1','Ixz1', 'Iyz1','Izz1',
 'm2', 'mx2','my2','mz2','Ixx2',
@@ -115,11 +117,13 @@ print(tabulate(std_table))
 ##################
 print('*******************************************')
 ##################
+print(dir(model.inertias[1]))
+print(model.inertias[2]) # inertial matrix  in  vector and matrix forms
 
+#eliminate columns crspnd. non-contributing parameters
 params_e = []
 params_r = [] 
 
-#eliminate columns crspnd. non-contributing parameters
 tol_e = 1e-16
 diag_W2 = np.diag(np.dot(W.T,W)) 
 phi_e = np.array([])
@@ -133,7 +137,7 @@ for i in range(diag_W2.shape[0]):
 phi_e = phi_e.astype(int)
 W_e = np.delete(W, phi_e, 1)
 npb = len(params_r)
-# print('eliminated parameters: ',params_e)
+print('eliminated parameters: ',params_e)
 
 #QR decompostion, rank revealing
 params_rsorted = []
@@ -144,7 +148,7 @@ Q, R , P= linalg.qr(W_e, pivoting=True)
 # print(Q.shape[0])
 for ind in P: 
 	params_rsorted.append(params_r[ind])
-# print('reduced parameters sorted:',params_rsorted)
+print('reduced parameters sorted:',params_rsorted)
 # print(tabulate([W_e[7, :],W_e[8,:],W_e[9,:],W_e[10,:]]))
 tolpal = W_e.shape[0]*abs(np.diag(R).max())*epsilon#rank revealing tolerance
 for i in range(np.diag(R).shape[0]):
