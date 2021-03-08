@@ -1,4 +1,4 @@
-<?xml version="1.0" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 
 <robot name="Chaser">
 
@@ -66,6 +66,14 @@
     <child link="Link_1"/>
     <origin rpy="0 0 0" xyz="0 0 0.25"/>
     <axis xyz="0 0 1"/>
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+    <dynamics
+      damping="0.5" 
+      friction = "0.5" />
   </joint>
     <!-- Link 1 -->
   <link name="Link_1">
@@ -95,6 +103,14 @@
     <child link="Link_2"/>
     <origin rpy="0 0 0" xyz="0 0 0.2"/>
     <axis xyz="1 0 0"/>
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+    <dynamics
+      damping="0.5" 
+      friction = "0.5" />
   </joint>
     <!-- Link 2 -->
   <link name="Link_2">
@@ -124,6 +140,14 @@
     <child link="Link_3"/>
     <origin rpy="0 0 0" xyz="0 0 0.75"/>
     <axis xyz="1 0 0"/>
+    <limit
+      lower="0"
+      upper="0"
+      effort="0"
+      velocity="0" />
+    <dynamics
+      damping="0.5" 
+      friction = "0.5" />
   </joint>
     <!-- Link 3 -->
   <link name="Link_3">

@@ -45,7 +45,16 @@ model = robot.model
 data = robot.data	
 nq, nv = model.nq, model.nv
 
-
+def generateWaypoints(): 
+	print('generate waypoints')
+def getDynamics(_):
+	print('get dynamics')
+def eliminateNonAffecting():
+	print('eliminate columns that has affecting to dynamics')
+def QR_pivoting():
+	print('QR_pivoting')
+def visualization(): 
+	print('visualization')
 #numbers of samples
 N = 49
 
@@ -124,7 +133,7 @@ print(model.inertias[2]) # inertial matrix  in  vector and matrix forms
 params_e = []
 params_r = [] 
 
-tol_e = 1e-16
+tol_e = 1e-16	
 diag_W2 = np.diag(np.dot(W.T,W)) 
 phi_e = np.array([])
 for i in range(diag_W2.shape[0]):

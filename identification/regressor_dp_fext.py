@@ -24,9 +24,12 @@ def loadModels(robotname, robot_urdf_file):
 	model_path = join(pinocchio_model_dir,"others/robots")
 	mesh_dir = model_path
 	urdf_filename = robot_urdf_file
-	urdf_dir = robotname + "/urdf"
+	urdf_dir = robotname + "/urdf"	
 	urdf_model_path = join(join(model_path,urdf_dir),urdf_filename)	
-	robot = RobotWrapper.BuildFromURDF(urdf_model_path, mesh_dir)
+	if not isFext: 
+		robot = RobotWrapper.BuildFromURDF(urdf_model_path, mesh_dir)
+	else: 
+		robot = RobotWrapper.BuildFromURDF(urdf_model_path, mesh_dir, pin.JointModelFreeFlyer())
 	return robot
 	
 #inertial parameters of link2 from urdf model
@@ -68,7 +71,7 @@ def generateWaypoints(N,nq,nv,mlow,mhigh):
 	return q, v, a
 
 #Building regressor
-def  iden_model(model, data, N, nq, nv, q, v, a): 
+def  iden_model(model, data, N, nq, nv, njoints, q, v, a): 
 	"""This function calculates joint torques and generates the joint torque regressor.
 		Note: a flag IsFrictioncld to include in dynamic model
 		Input: 	model, data: model and data structure of robot from Pinocchio
@@ -77,21 +80,21 @@ def  iden_model(model, data, N, nq, nv, q, v, a):
 				nq: length of q
 		Output: tau: vector of joint torque
 				W : joint torque regressor"""
-	tau = np.empty(nq*N)
-	W = np.empty([N*nq, 10*nq]) 
+	tau = np.empty(nv*N)
+	W = np.empty([N*nv, 10*(njoints-1)]) 
 	for i in range(N):
 		tau_temp = pin.rnea(model, data, q[i,:], v[i,:], a[i,:])
 		W_temp = pin.computeJointTorqueRegressor(model, data, q[i,:], v[i,:], a[i,:])
-		for j in range(nq):
+		for j in range(W_temp.shape[0]):
 			tau[j*N + i] = tau_temp[j]
 			W[j*N + i, :] = W_temp[j,:]
 	if isFrictionincld:
-		W = np.c_[W,np.zeros([N*nq,2*nq])]
+		W = np.c_[W,np.zeros([N*nv,2*nv])]
 		for i in range(N):
-			for j in range(nq):
+			for j in range(nv):
 				tau[j*N + i] = tau[j*N + i] + v[i,j]*fv + np.sign(v[i,j])*fc
-				W[j*N + i, 10*nq+2*j] = v[i,j]
-				W[j*N + i, 10*nq+2*j + 1] = np.sign(v[i,j])
+				W[j*N + i, 10*(njoints-1)+2*j] = v[i,j]
+				W[j*N + i, 10*(njoints-1)+2*j + 1] = np.sign(v[i,j])
 	return tau, W
 def iden_model_fext():
 
@@ -104,7 +107,7 @@ def eliminateNonAffecting(W, tol_e):
 				tol_e: tolerance 
 		Output: W_e: reduced regressor
 				params_r: corresponding parameters to columns of reduced regressor"""
-	col_norm = np.diag(np.dot(W_.T,W_))
+	col_norm = np.diag(np.dot(W.T,W))
 	idx_e = []
 	params_e = []
 	params_r = []
@@ -114,7 +117,7 @@ def eliminateNonAffecting(W, tol_e):
 			params_e.append(list(params_std.keys())[i])
 		else: 
 			params_r.append(list(params_std.keys())[i])
-	W_e = np.delete(W_, idx_e, 1)
+	W_e = np.delete(W, idx_e, 1)
 	return W_e, params_r
 
 #QR decompostion, rank revealing
@@ -137,28 +140,34 @@ def QR_pivoting(W_e, params_r):
 	epsilon = np.finfo(float).eps# machine epsilon
 	tolpal = W_e.shape[0]*abs(np.diag(R).max())*epsilon#rank revealing tolerance
 	for i in range(np.diag(R).shape[0]):
-		if abs(np.diag(R)[i]) < tolpal:
+		if abs(np.diag(R)[i]) > tolpal:
+			continue
+		else: 
 			numrank_W = i
+			break
 	#regrouping, calculating base params, base regressor
 	R1 = R[0:numrank_W,0:numrank_W]
 	Q1 = Q[:,0:numrank_W]
 	R2 = R[0:numrank_W,numrank_W:R.shape[1]]
 	beta = np.round(np.dot(np.linalg.inv(R1),R2),6)#regrouping coefficient
-	phi_b = np.round(np.dot(np.linalg.inv(R1),np.dot(Q1.T,tau_)),6)#values of base params
+
+	phi_b = np.round(np.dot(np.linalg.inv(R1),np.dot(Q1.T,tau)),6)#values of base params
 	W_b = np.dot(Q1,R1)#base regressor
-	params_idp = params_rsorted[:numrank_W]
-	params_rgp = params_rsorted[numrank_W]
-	print(params_rgp)
-	params_base = []
+	params_base = params_rsorted[:numrank_W]
+	params_rgp = params_rsorted[numrank_W:]
 	for i in range(numrank_W):
-		if beta[i] == 0:	
-			params_base.append(params_idp[i])
-			
-		else:
-			params_base.append(params_idp[i] + ' + '+str(round(float(beta[i]),6)) + '*'+ str(params_rgp))
+		for j in range(beta.shape[1]):
+			if beta[i,j] == 0:	
+				params_base[i] = params_base[i]
+			elif beta[i,j] < 0:
+				params_base[i] = params_base[i] + ' - '+str(abs(beta[i,j])) + '*'+ str(params_rgp[j])
+			else:
+				params_base[i] = params_base[i] + ' + '+str(abs(beta[i,j])) + '*'+ str(params_rgp[j])
 	print('base parameters and their identified values: ')
-	table = [params_base, phi_b]
-	print(tabulate(table))
+	base_parameters = dict(zip(params_base,phi_b))
+	print(base_parameters)
+	# table = [params_base, phi_b]
+	# print(tabulate(table))
 	return W_b, phi_b, numrank_W, params_rsorted
 
 # print('idpnd. parameters: ', params_idp)
@@ -198,15 +207,18 @@ if VISUALIZER:
 		if elapsed_time < dt:
 			time.sleep(dt - elapsed_time)
 
+isFext = True
+
 isFrictionincld = False
 if len(argv)>1:
 	if argv[1] == '-f':
 		isFrictionincld = True
 fv = 0.05
 fc = 0.01
-# robot = loadModels("2DOF_description", "2DOF_description.urdf")
-robot = loadModels("SC_3DOF", "3DOF.urdf")
+robot = loadModels("2DOF_description", "2DOF_description.urdf")
+# robot = loadModels("SC_3DOF", "3DOF.urdf")
 model = robot.model
+print(model)
 data = robot.data	
 nq, nv , njoints = model.nq, model.nv, model.njoints
 #numbers of samples
@@ -214,9 +226,9 @@ N = 1000
 params_std = standardParameters(njoints)
 print("Standard inertial parameters: ",params_std)
 print("###########################")
-q , qd, qdd = generateWaypoints(N, nq, nv, -10, 10)
-tau_, W_ = iden_model(model, data, N, nq, nv, q, qd, qdd)
-W_e, params_r = eliminateNonAffecting(W_, 1e-6)
+q , qd, qdd = generateWaypoints(N, nq, nv, -1, 1)
+tau, W = iden_model(model, data, N,  nq, nv,njoints, q, qd, qdd)
+W_e, params_r = eliminateNonAffecting(W, 1e-6)
 W_b, phi_b, numrank_W, params_rsorted = QR_pivoting(W_e, params_r)
 print("###########################")
 print('condition number of base regressor: ',np.linalg.cond(W_b))
