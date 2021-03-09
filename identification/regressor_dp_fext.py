@@ -207,7 +207,7 @@ if VISUALIZER:
 		if elapsed_time < dt:
 			time.sleep(dt - elapsed_time)
 
-isFext = True
+isFext = False
 
 isFrictionincld = False
 if len(argv)>1:
